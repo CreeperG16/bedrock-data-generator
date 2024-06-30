@@ -1,0 +1,4 @@
+bedrock-samples/*
+server/*
+*/node_modules/*
+mcdata-output/*

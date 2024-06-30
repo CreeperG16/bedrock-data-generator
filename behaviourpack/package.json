@@ -1,0 +1,13 @@
+{
+  "name": "behaviourpack",
+  "version": "1.0.0",
+  "main": "scripts/main.js",
+  "license": "MIT",
+  "devDependencies": {
+    "@minecraft/server": "^1.12.0-beta.1.21.0-stable",
+    "@minecraft/server-net": "^1.0.0-beta.1.21.0-stable"
+  },
+  "dependencies": {
+    "@minecraft/server-gametest": "^1.0.0-beta.1.21.0-stable"
+  }
+}
