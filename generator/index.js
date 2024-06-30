@@ -26,38 +26,50 @@ const getArg = (arg) => process.argv.at(process.argv.indexOf("--" + arg) + 1);
 
 const exec = (command, options = {}) => new Promise((resolve) => cp.exec(command, options, (...a) => resolve(a)));
 
-const cwd = path.resolve("..");
+const cwd = path.basename(path.resolve()) === "generator" ? path.resolve("..") : path.resolve();
 const p = (...a) => path.join(cwd, ...a);
 
 console.log("Running generator in directory '%s'...", cwd);
 
 if (!hasArg("version")) throw new Error("Please provide a version!");
-const mcversion = getArg("version");
+const mcversion = getArg("version").split(".").slice(0, 3).join("."); // Don't use the build number for now, let the downloaders find that automatically
 if (mcversion.split(".").length < 3) throw new Error("Version must have three parts. e.g: '1.21.0'");
 
+/** Helper function to save data to a file.
+ * @param {string} file
+ * @param {any} data
+ **/
 async function saveMcdata(file, data) {
   await fs.promises.writeFile(p("mcdata-output", file + ".json"), JSON.stringify(data, null, 2));
 }
 
+/** Download the needed resources (bedrock-samples repo, BDS) */
 async function download() {
   console.log("Cloning samples repo...");
   await exec(`git clone ${BEDROCK_SAMPLES_URL} ${p("bedrock-samples")}`);
 
+  // This attempts to checkout the version specified
+  // Not all minor versions are added as tags, so will attempt to find one which matches
+  // For example, 1.20.81 doesn't exist on the repo, so it will match 1.20.80
   let [, tag] = await exec(`git tag -l "v${mcversion}.[0-8]"`, { cwd: p("bedrock-samples") });
   if (tag.trim().length === 0) {
     const [, major, minor] = mcversion.split(".");
     [, tag] = await exec(`git tag -l "v1.${major}.${minor.substring(0, minor.length-1)}[0-9].[0-9]"`, { cwd: p("bedrock-samples") });
   }
+
+  // Terminate for now if we don't find the version tag, as we don't want to generate incorrect data
   if (tag.trim().length === 0) {
     throw new Error("Could not find tag for version '" + mcversion + "'.");
   }
 
+  // Checkout the found tag
   await exec(`git checkout tags/${tag.trim()}`, { cwd: p("bedrock-samples") });
   console.log("Checked out tag '%s'.", tag.trim());
 
   console.log("Downloading bedrock server...");
   const isDownloaded = fs.existsSync(p("server"));
   if (isDownloaded) {
+    // Redownload the server if the saved server's version is different
     const downloadedVersion = await fs.promises.readFile(p("server/version.txt"), "utf-8");
     if (downloadedVersion === mcversion) return;
 
@@ -65,24 +77,28 @@ async function download() {
     await fs.promises.rm(p("server"), { recursive: true, force: true });
   }
   await bedrockServer.downloadServer(mcversion, { path: p("server"), ...SERVER_PROPERTIES });
-  await fs.promises.writeFile(p("server/version.txt"), mcversion);
+  await fs.promises.writeFile(p("server/version.txt"), mcversion); // Save the version for future runs of the script
 }
 
 async function start() {
   console.log("Preparing server...");
 
-  // Copy world
+  // Copy the world into the server. This copy will also be modified later.
   await fs.promises.cp(p("world"), p("server/worlds/bedrock-data-generator"), { recursive: true });
 
-  // Prepare server
   const server = await bedrockServer.prepare(mcversion, { path: p("server"), ...SERVER_PROPERTIES });
 
-  // Set permissions
+  // Set permissions. BDS by default disables the @minecraft/server-net permission.
+  // This script doesn't currently use the scripting API's HTTP capabilities, but might in the future
+  // for more efficient and reliable data transfer.
   await fs.promises.writeFile(p("server/config/default/permissions.json"), JSON.stringify(SERVER_PERMISSIONS), {
     recursive: true,
   });
 
-  // Add behaviour pack
+  // Get information about the behaviour pack from the manifest (name, UUID)
+  // The name is used to move the pack into its own folder in BDS's behavior_packs folder
+  // The UUID is needed to set the pack as enabled in the BDS's world_behavior_packs.json file
+  // Additionally modify the manifest to use the correct beta version of the @minecraft/server module
   const bpManifest = await fs.promises
     .readFile(p("behaviourpack/manifest.json"), "utf-8")
     .then((file) => JSON.parse(file));
@@ -99,18 +115,25 @@ async function start() {
   bpManifest.dependencies.find(d => d.module_name === "@minecraft/server").version = scriptVersion;
   await fs.promises.writeFile(p("server/behavior_packs/", bpManifest.header.name, "manifest.json"), JSON.stringify(bpManifest));
 
-  // Turn on beta APIs experiment
+  // This enables the "Beta APIs" experiment and exposes useful classes in the scripting API
+  // most *Types classes are behind this toggle, which are useful as they have the .getAll() method which returns all
+  // of the specified object (items, blocks, entities, etc.)
   await server.toggleExperiments({ gametest: true });
 
-  // Start server
+  // Start the server and disable stdout to keep the script output clean.
+  // When debugging an issue, try to reenable stdout by commenting the unpipe() call
   const handle = await server.startAndWaitReady();
   handle.stdout.unpipe(process.stdout);
 
+  // Connect a bedrock-protocol client to the started vanilla server
+  // We can then look at vanilla data sent in packets, such as biome definitions, items and crafting recipes
+  // This script also uses the client to get the display names of items, as their translation IDs are extremely inconsistent
   console.log("Connecting client...");
-  // Connect client
-  const pong = await bedrockProto.ping({ host: "127.0.0.1", port: SERVER_PROPERTIES["server-port"] });
-  console.log("Connecting to server with protocol version %s.", pong.protocol);
 
+  const pong = await bedrockProto.ping({ host: "127.0.0.1", port: SERVER_PROPERTIES["server-port"] });
+  console.log("Connecting to dedicated server with protocol version %s.", pong.protocol);
+
+  // Make sure the client connects to the server with the same protocol version
   const clientVer = mcdata.versions.bedrock.find(x => x.version == pong.protocol)?.minecraftVersion;
   if (!clientVer) {
     throw new Error("Version '" + pong.protocol + "' (" + pong.version + ") not supported by bedrock-protocol.");
@@ -133,6 +156,9 @@ async function start() {
   return { server, client, finish };
 }
 
+// Helper function to create promises for specific packets/events
+// Either to halt the code until an event happens with await, or to
+// keep an event's data for later without await
 const waitClientEvent = (name, client) => new Promise((r) => client.once(name, r));
 
 async function main() {
@@ -150,7 +176,8 @@ async function main() {
   console.log("\n----- Starting server and client ------");
   const { server, client, finish } = await start();
 
-  // Save some packets for later
+  // These packets are sent during the login process, but we need their data
+  // later on, so we create promises which we can then await the resolved data of later
   const startGame = waitClientEvent("start_game", client);
   const biomeDefList = waitClientEvent("biome_definition_list", client);
   const craftingData = waitClientEvent("crafting_data", client);

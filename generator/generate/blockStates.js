@@ -1,6 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 
+/**
+ * This takes the mojang-blocks.json file that Mojang provides in bedrock-samples, and converts
+ * it into the blockStates.json file for minecraft-data.
+ * @param {string} cwd
+ */
 module.exports = async (cwd) => {
   const blocksPath = path.join(cwd, "bedrock-samples/metadata/vanilladata_modules/mojang-blocks.json");
   const blocksJson = await fs.promises.readFile(blocksPath, "utf-8").then((x) => JSON.parse(x));
