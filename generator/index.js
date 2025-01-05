@@ -109,6 +109,9 @@ async function start() {
     await server.enableBehaviorPack(bpManifest.header.uuid, bpManifest.header.version.join("."));
 
     // Set gametest version to latest beta
+    // Find the specific version by the name of the module in bedrock-samples
+    // the API definition JSON files in script_modules are named according to version,
+    // so this way we can find the current latest beta version
     const scriptVersions = await fs.promises
         .readdir(p("bedrock-samples/metadata/script_modules/@minecraft"))
         .then((files) => files.filter((f) => f.startsWith("server_")));
@@ -118,9 +121,15 @@ async function start() {
         .replace("server_", "")
         .replace(".json", "");
     bpManifest.dependencies.find((d) => d.module_name === "@minecraft/server").version = scriptVersion;
+
+    // Set the min_engine_version to the current version
+    const minEngineVersion = mcversion.split(".").map(Number);
+    bpManifest.header.min_engine_version = minEngineVersion;
+
+    // Write the updated manifest to the server's behaviour pack directory
     await fs.promises.writeFile(
         p("server/behavior_packs/", bpManifest.header.name, "manifest.json"),
-        JSON.stringify(bpManifest)
+        JSON.stringify(bpManifest, null, 2)
     );
 
     // This enables the "Beta APIs" experiment and exposes useful classes in the scripting API

@@ -1,3 +1,18 @@
+/**
+ *  Items schema:
+ *      id!: number
+ *      displayName!: string
+ *      stackSize!: number
+ *      name!: string
+ *      enchantCategories: string[] // describes categories of enchants this item can use
+ *      repairWith: string[] // describes what items this item can be fixed with in an anvil
+ *      maxDurability: number // the amount of durability an item has before being damaged/used
+ *      variations: {
+ *          metadata!: number
+ *          displayName!: string
+ *      }[]
+ */
+
 module.exports = (client, itemstates) =>
     new Promise((resolve) => {
         const itemMap = new Map();
@@ -35,6 +50,9 @@ module.exports = (client, itemstates) =>
                 if (key === "ITEM_MAXSIZE") update(lastItem, { stackSize: parseInt(val) });
                 if (key === "ITEM_DURA" && val !== "null") update(lastItem, { maxDurability: parseInt(val) });
             } else {
+                // Use the output of the /give command to get the display name
+                // This is easier than trying to use the item's ID to find its translation key
+                // as a LOT of items use nonstandard translation keys
                 const displayName = rawtext[0].with.rawtext[0].text;
                 update(lastItem, { displayName });
             }
