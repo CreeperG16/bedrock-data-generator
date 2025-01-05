@@ -7,34 +7,34 @@ const path = require("path");
  * @param {string} cwd
  */
 module.exports = async (cwd) => {
-  const blocksPath = path.join(cwd, "bedrock-samples/metadata/vanilladata_modules/mojang-blocks.json");
-  const blocksJson = await fs.promises.readFile(blocksPath, "utf-8").then((x) => JSON.parse(x));
+    const blocksPath = path.join(cwd, "bedrock-samples/metadata/vanilladata_modules/mojang-blocks.json");
+    const blocksJson = await fs.promises.readFile(blocksPath, "utf-8").then((x) => JSON.parse(x));
 
-  function generatePermutations(properties, index = 0, currentPermutation = {}) {
-    if (index === properties.length) return [currentPermutation];
+    function generatePermutations(properties, index = 0, currentPermutation = {}) {
+        if (index === properties.length) return [currentPermutation];
 
-    const currentProperty = properties[index];
-    const permutations = [];
+        const currentProperty = properties[index];
+        const permutations = [];
 
-    for (const valueObj of currentProperty.values) {
-      const newPermutation = {
-        ...currentPermutation,
-        [currentProperty.name]: { type: currentProperty.type, value: valueObj.value },
-      };
-      permutations.push(...generatePermutations(properties, index + 1, newPermutation));
+        for (const valueObj of currentProperty.values) {
+            const newPermutation = {
+                ...currentPermutation,
+                [currentProperty.name]: { type: currentProperty.type, value: valueObj.value },
+            };
+            permutations.push(...generatePermutations(properties, index + 1, newPermutation));
+        }
+
+        return permutations;
     }
 
-    return permutations;
-  }
+    const blockStates = [];
+    for (const block of blocksJson.data_items) {
+        const permutations = generatePermutations(
+            block.properties.map((x) => blocksJson.block_properties.find((y) => y.name === x.name))
+        );
 
-  const blockStates = [];
-  for (const block of blocksJson.data_items) {
-    const permutations = generatePermutations(
-      block.properties.map((x) => blocksJson.block_properties.find((y) => y.name === x.name))
-    );
+        blockStates.push(...permutations.map((x) => ({ name: block.name.replace("minecraft:", ""), states: x })));
+    }
 
-    blockStates.push(...permutations.map((x) => ({ name: block.name.replace("minecraft:", ""), states: x })));
-  }
-
-  return blockStates;
+    return blockStates;
 };

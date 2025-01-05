@@ -9,16 +9,16 @@ const { BEDROCK_SAMPLES_URL, SERVER_PROPERTIES, SERVER_PERMISSIONS } = require("
 
 // Data generators
 const generators = {
-  language: require("./generate/language"),
-  sounds: require("./generate/sounds"),
-  particles: require("./generate/particles"),
-  entities: require("./generate/entities"),
-  items: require("./generate/items"),
-  foods: require("./generate/foods"),
-  biomes: require("./generate/biomes"),
-  recipes: require("./generate/recipes"),
-  blockStates: require("./generate/blockStates"),
-  version: require("./generate/version"),
+    language: require("./generate/language"),
+    sounds: require("./generate/sounds"),
+    particles: require("./generate/particles"),
+    entities: require("./generate/entities"),
+    items: require("./generate/items"),
+    foods: require("./generate/foods"),
+    biomes: require("./generate/biomes"),
+    recipes: require("./generate/recipes"),
+    blockStates: require("./generate/blockStates"),
+    version: require("./generate/version"),
 };
 
 const hasArg = (arg) => process.argv.includes("--" + arg);
@@ -40,120 +40,131 @@ if (mcversion.split(".").length < 3) throw new Error("Version must have three pa
  * @param {any} data
  **/
 async function saveMcdata(file, data) {
-  await fs.promises.writeFile(p("mcdata-output", file + ".json"), JSON.stringify(data, null, 2));
+    await fs.promises.writeFile(p("mcdata-output", file + ".json"), JSON.stringify(data, null, 2));
 }
 
 /** Download the needed resources (bedrock-samples repo, BDS) */
 async function download() {
-  console.log("Cloning samples repo...");
-  await exec(`git clone ${BEDROCK_SAMPLES_URL} ${p("bedrock-samples")}`);
+    console.log("Cloning samples repo...");
+    await exec(`git clone ${BEDROCK_SAMPLES_URL} ${p("bedrock-samples")}`);
 
-  // This attempts to checkout the version specified
-  // Not all minor versions are added as tags, so will attempt to find one which matches
-  // For example, 1.20.81 doesn't exist on the repo, so it will match 1.20.80
-  let [, tag] = await exec(`git tag -l "v${mcversion}.[0-8]"`, { cwd: p("bedrock-samples") });
-  if (tag.trim().length === 0) {
-    const [, major, minor] = mcversion.split(".");
-    [, tag] = await exec(`git tag -l "v1.${major}.${minor.substring(0, minor.length-1)}[0-9].[0-9]"`, { cwd: p("bedrock-samples") });
-  }
+    // This attempts to checkout the version specified
+    // Not all minor versions are added as tags, so will attempt to find one which matches
+    // For example, 1.20.81 doesn't exist on the repo, so it will match 1.20.80
+    let [, tag] = await exec(`git tag -l "v${mcversion}.[0-8]"`, { cwd: p("bedrock-samples") });
+    if (tag.trim().length === 0) {
+        const [, major, minor] = mcversion.split(".");
+        [, tag] = await exec(`git tag -l "v1.${major}.${minor.substring(0, minor.length - 1)}[0-9].[0-9]"`, {
+            cwd: p("bedrock-samples"),
+        });
+    }
 
-  // Terminate for now if we don't find the version tag, as we don't want to generate incorrect data
-  if (tag.trim().length === 0) {
-    throw new Error("Could not find tag for version '" + mcversion + "'.");
-  }
+    // Terminate for now if we don't find the version tag, as we don't want to generate incorrect data
+    if (tag.trim().length === 0) {
+        throw new Error("Could not find tag for version '" + mcversion + "'.");
+    }
 
-  // Checkout the found tag
-  await exec(`git checkout tags/${tag.trim()}`, { cwd: p("bedrock-samples") });
-  console.log("Checked out tag '%s'.", tag.trim());
+    // Checkout the found tag
+    await exec(`git checkout tags/${tag.trim()}`, { cwd: p("bedrock-samples") });
+    console.log("Checked out tag '%s'.", tag.trim());
 
-  console.log("Downloading bedrock server...");
-  const isDownloaded = fs.existsSync(p("server"));
-  if (isDownloaded) {
-    // Redownload the server if the saved server's version is different
-    const downloadedVersion = await fs.promises.readFile(p("server/version.txt"), "utf-8");
-    if (downloadedVersion === mcversion) return;
+    console.log("Downloading bedrock server...");
+    const isDownloaded = fs.existsSync(p("server"));
+    if (isDownloaded) {
+        // Redownload the server if the saved server's version is different
+        const downloadedVersion = await fs.promises.readFile(p("server/version.txt"), "utf-8");
+        if (downloadedVersion === mcversion) return;
 
-    console.log("Removing old server...");
-    await fs.promises.rm(p("server"), { recursive: true, force: true });
-  }
-  await bedrockServer.downloadServer(mcversion, { path: p("server"), ...SERVER_PROPERTIES });
-  await fs.promises.writeFile(p("server/version.txt"), mcversion); // Save the version for future runs of the script
+        console.log("Removing old server...");
+        await fs.promises.rm(p("server"), { recursive: true, force: true });
+    }
+    await bedrockServer.downloadServer(mcversion, { path: p("server"), ...SERVER_PROPERTIES });
+    await fs.promises.writeFile(p("server/version.txt"), mcversion); // Save the version for future runs of the script
 }
 
 async function start() {
-  console.log("Preparing server...");
+    console.log("Preparing server...");
 
-  // Copy the world into the server. This copy will also be modified later.
-  await fs.promises.cp(p("world"), p("server/worlds/bedrock-data-generator"), { recursive: true });
+    // Copy the world into the server. This copy will also be modified later.
+    await fs.promises.cp(p("world"), p("server/worlds/bedrock-data-generator"), { recursive: true });
 
-  const server = await bedrockServer.prepare(mcversion, { path: p("server"), ...SERVER_PROPERTIES });
+    const server = await bedrockServer.prepare(mcversion, { path: p("server"), ...SERVER_PROPERTIES });
 
-  // Set permissions. BDS by default disables the @minecraft/server-net permission.
-  // This script doesn't currently use the scripting API's HTTP capabilities, but might in the future
-  // for more efficient and reliable data transfer.
-  await fs.promises.writeFile(p("server/config/default/permissions.json"), JSON.stringify(SERVER_PERMISSIONS), {
-    recursive: true,
-  });
+    // Set permissions. BDS by default disables the @minecraft/server-net permission.
+    // This script doesn't currently use the scripting API's HTTP capabilities, but might in the future
+    // for more efficient and reliable data transfer.
+    await fs.promises.writeFile(p("server/config/default/permissions.json"), JSON.stringify(SERVER_PERMISSIONS), {
+        recursive: true,
+    });
 
-  // Get information about the behaviour pack from the manifest (name, UUID)
-  // The name is used to move the pack into its own folder in BDS's behavior_packs folder
-  // The UUID is needed to set the pack as enabled in the BDS's world_behavior_packs.json file
-  // Additionally modify the manifest to use the correct beta version of the @minecraft/server module
-  const bpManifest = await fs.promises
-    .readFile(p("behaviourpack/manifest.json"), "utf-8")
-    .then((file) => JSON.parse(file));
+    // Get information about the behaviour pack from the manifest (name, UUID)
+    // The name is used to move the pack into its own folder in BDS's behavior_packs folder
+    // The UUID is needed to set the pack as enabled in the BDS's world_behavior_packs.json file
+    // Additionally modify the manifest to use the correct beta version of the @minecraft/server module
+    const bpManifest = await fs.promises
+        .readFile(p("behaviourpack/manifest.json"), "utf-8")
+        .then((file) => JSON.parse(file));
 
-  await fs.promises.cp(p("behaviourpack"), p("server/behavior_packs", bpManifest.header.name), { recursive: true });
-  await server.enableBehaviorPack(bpManifest.header.uuid, bpManifest.header.version.join("."));
+    await fs.promises.cp(p("behaviourpack"), p("server/behavior_packs", bpManifest.header.name), { recursive: true });
+    await server.enableBehaviorPack(bpManifest.header.uuid, bpManifest.header.version.join("."));
 
-  // Set gametest version to latest beta
-  const scriptVersions = await fs.promises
-    .readdir(p("bedrock-samples/metadata/script_modules/@minecraft"))
-    .then((files) => files.filter((f) => f.startsWith("server_")));
+    // Set gametest version to latest beta
+    const scriptVersions = await fs.promises
+        .readdir(p("bedrock-samples/metadata/script_modules/@minecraft"))
+        .then((files) => files.filter((f) => f.startsWith("server_")));
 
-  const scriptVersion = scriptVersions.find(file => file.endsWith("-beta.json")).replace("server_", "").replace(".json", "");
-  bpManifest.dependencies.find(d => d.module_name === "@minecraft/server").version = scriptVersion;
-  await fs.promises.writeFile(p("server/behavior_packs/", bpManifest.header.name, "manifest.json"), JSON.stringify(bpManifest));
+    const scriptVersion = scriptVersions
+        .find((file) => file.endsWith("-beta.json"))
+        .replace("server_", "")
+        .replace(".json", "");
+    bpManifest.dependencies.find((d) => d.module_name === "@minecraft/server").version = scriptVersion;
+    await fs.promises.writeFile(
+        p("server/behavior_packs/", bpManifest.header.name, "manifest.json"),
+        JSON.stringify(bpManifest)
+    );
 
-  // This enables the "Beta APIs" experiment and exposes useful classes in the scripting API
-  // most *Types classes are behind this toggle, which are useful as they have the .getAll() method which returns all
-  // of the specified object (items, blocks, entities, etc.)
-  await server.toggleExperiments({ gametest: true });
+    // This enables the "Beta APIs" experiment and exposes useful classes in the scripting API
+    // most *Types classes are behind this toggle, which are useful as they have the .getAll() method which returns all
+    // of the specified object (items, blocks, entities, etc.)
+    await server.toggleExperiments({ gametest: true });
 
-  // Start the server and disable stdout to keep the script output clean.
-  // When debugging an issue, try to reenable stdout by commenting the unpipe() call
-  const handle = await server.startAndWaitReady();
-  handle.stdout.unpipe(process.stdout);
+    // Start the server and disable stdout to keep the script output clean.
+    // When debugging an issue, try to reenable stdout by commenting the unpipe() call
+    const handle = await server.startAndWaitReady();
+    handle.stdout.unpipe(process.stdout);
 
-  // Connect a bedrock-protocol client to the started vanilla server
-  // We can then look at vanilla data sent in packets, such as biome definitions, items and crafting recipes
-  // This script also uses the client to get the display names of items, as their translation IDs are extremely inconsistent
-  console.log("Connecting client...");
+    // Sleep a second so the server has time to start and allow the client to join
+    await new Promise((r) => setTimeout(r, 1000));
 
-  const pong = await bedrockProto.ping({ host: "127.0.0.1", port: SERVER_PROPERTIES["server-port"] });
-  console.log("Connecting to dedicated server with protocol version %s.", pong.protocol);
+    // Connect a bedrock-protocol client to the started vanilla server
+    // We can then look at vanilla data sent in packets, such as biome definitions, items and crafting recipes
+    // This script also uses the client to get the display names of items, as their translation IDs are extremely inconsistent
+    console.log("Connecting client...");
 
-  // Make sure the client connects to the server with the same protocol version
-  const clientVer = mcdata.versions.bedrock.find(x => x.version == pong.protocol)?.minecraftVersion;
-  if (!clientVer) {
-    throw new Error("Version '" + pong.protocol + "' (" + pong.version + ") not supported by bedrock-protocol.");
-  }
+    const pong = await bedrockProto.ping({ host: "127.0.0.1", port: SERVER_PROPERTIES["server-port"] });
+    console.log("Connecting to dedicated server with protocol version %s.", pong.protocol);
 
-  const client = bedrockProto.createClient({
-    host: "127.0.0.1",
-    port: SERVER_PROPERTIES["server-port"],
-    username: "bedrock-data-generator",
-    offline: true,
-    version: clientVer,
-    skipPing: true,
-  });
+    // Make sure the client connects to the server with the same protocol version
+    const clientVer = mcdata.versions.bedrock.find((x) => x.version == pong.protocol)?.minecraftVersion;
+    if (!clientVer) {
+        throw new Error("Version '" + pong.protocol + "' (" + pong.version + ") not supported by bedrock-protocol.");
+    }
 
-  const finish = async () => {
-    client.disconnect();
-    await server.stop();
-  };
+    const client = bedrockProto.createClient({
+        host: "127.0.0.1",
+        port: SERVER_PROPERTIES["server-port"],
+        username: "bedrock-data-generator",
+        offline: true,
+        version: clientVer,
+        skipPing: true,
+    });
 
-  return { server, client, finish };
+    const finish = async () => {
+        client.disconnect();
+        await server.stop();
+    };
+
+    return { server, client, finish };
 }
 
 // Helper function to create promises for specific packets/events
@@ -162,74 +173,74 @@ async function start() {
 const waitClientEvent = (name, client) => new Promise((r) => client.once(name, r));
 
 async function main() {
-  if (fs.existsSync(p("mcdata-output"))) {
-    console.log("Deleting old mcdata output directory...");
-    await fs.promises.rm(p("mcdata-output"), { recursive: true, force: true });
-  }
+    if (fs.existsSync(p("mcdata-output"))) {
+        console.log("Deleting old mcdata output directory...");
+        await fs.promises.rm(p("mcdata-output"), { recursive: true, force: true });
+    }
 
-  console.log("Creating mcdata output directory...");
-  await fs.promises.mkdir(p("mcdata-output"));
+    console.log("Creating mcdata output directory...");
+    await fs.promises.mkdir(p("mcdata-output"));
 
-  console.log("\n-------- Downloading resources --------");
-  await download();
+    console.log("\n-------- Downloading resources --------");
+    await download();
 
-  console.log("\n----- Starting server and client ------");
-  const { server, client, finish } = await start();
+    console.log("\n----- Starting server and client ------");
+    const { server, client, finish } = await start();
 
-  // These packets are sent during the login process, but we need their data
-  // later on, so we create promises which we can then await the resolved data of later
-  const startGame = waitClientEvent("start_game", client);
-  const biomeDefList = waitClientEvent("biome_definition_list", client);
-  const craftingData = waitClientEvent("crafting_data", client);
+    // These packets are sent during the login process, but we need their data
+    // later on, so we create promises which we can then await the resolved data of later
+    const startGame = waitClientEvent("start_game", client);
+    const biomeDefList = waitClientEvent("biome_definition_list", client);
+    const craftingData = waitClientEvent("crafting_data", client);
 
-  await waitClientEvent("spawn", client);
+    await waitClientEvent("spawn", client);
 
-  console.log("\nSaving data...");
+    console.log("\nSaving data...");
 
-  const language = await generators.language(cwd);
-  await saveMcdata("language", language);
-  console.log(" - Saved language.json");
+    const language = await generators.language(cwd);
+    await saveMcdata("language", language);
+    console.log(" - Saved language.json");
 
-  const sounds = await generators.sounds(cwd);
-  await saveMcdata("sounds", sounds);
-  console.log(" - Saved sounds.json");
+    const sounds = await generators.sounds(cwd);
+    await saveMcdata("sounds", sounds);
+    console.log(" - Saved sounds.json");
 
-  const entities = await generators.entities(cwd, language);
-  await saveMcdata("entities", entities);
-  console.log(" - Saved entities.json");
+    const entities = await generators.entities(cwd, language);
+    await saveMcdata("entities", entities);
+    console.log(" - Saved entities.json");
 
-  const particles = await generators.particles(cwd);
-  await saveMcdata("particles", particles);
-  console.log(" - Saved particles.json");
+    const particles = await generators.particles(cwd);
+    await saveMcdata("particles", particles);
+    console.log(" - Saved particles.json");
 
-  const items = await generators.items(client, (await startGame).itemstates);
-  await saveMcdata("items", items);
-  console.log(" - Saved items.json");
+    const items = await generators.items(client, (await startGame).itemstates);
+    await saveMcdata("items", items);
+    console.log(" - Saved items.json");
 
-  const foods = await generators.foods(cwd, items);
-  await saveMcdata("foods", foods);
-  console.log(" - Saved foods.json");
+    const foods = await generators.foods(cwd, items);
+    await saveMcdata("foods", foods);
+    console.log(" - Saved foods.json");
 
-  const biomes = await generators.biomes(await biomeDefList);
-  await saveMcdata("biomes", biomes);
-  console.log(" - Saved biomes.json");
+    const biomes = await generators.biomes(await biomeDefList);
+    await saveMcdata("biomes", biomes);
+    console.log(" - Saved biomes.json");
 
-  const recipes = await generators.recipes(await craftingData);
-  await saveMcdata("recipes", recipes);
-  console.log(" - Saved recipes.json");
+    const recipes = await generators.recipes(await craftingData);
+    await saveMcdata("recipes", recipes);
+    console.log(" - Saved recipes.json");
 
-  const blockStates = await generators.blockStates(cwd);
-  await saveMcdata("blockStates", blockStates);
-  console.log(" - Saved blockStates.json");
+    const blockStates = await generators.blockStates(cwd);
+    await saveMcdata("blockStates", blockStates);
+    console.log(" - Saved blockStates.json");
 
-  const version = await generators.version(client.options.version);
-  await saveMcdata("version", version);
-  console.log(" - Saved version.json");
+    const version = await generators.version(client.options.version);
+    await saveMcdata("version", version);
+    console.log(" - Saved version.json");
 
-  await finish();
+    await finish();
 
-  console.log("\nDone!");
-  process.exit(0);
+    console.log("\nDone!");
+    process.exit(0);
 }
 
 main();
