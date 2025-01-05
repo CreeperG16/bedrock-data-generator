@@ -18,6 +18,7 @@ const generators = {
     biomes: require("./generate/biomes"),
     recipes: require("./generate/recipes"),
     blockStates: require("./generate/blockStates"),
+    blocks: require("./generate/blocks"),
     version: require("./generate/version"),
 };
 
@@ -241,6 +242,10 @@ async function main() {
     const blockStates = await generators.blockStates(cwd);
     await saveMcdata("blockStates", blockStates);
     console.log(" - Saved blockStates.json");
+
+    const blocks = await generators.blocks(cwd, language, items);
+    await saveMcdata("blocks", blocks);
+    console.log(" - Saved blocks.json");
 
     const version = await generators.version(client.options.version);
     await saveMcdata("version", version);
