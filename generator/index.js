@@ -52,13 +52,15 @@ async function download() {
     // This attempts to checkout the version specified
     // Not all minor versions are added as tags, so will attempt to find one which matches
     // For example, 1.20.81 doesn't exist on the repo, so it will match 1.20.80
-    let [, tag] = await exec(`git tag -l "v${mcversion}.[0-8]"`, { cwd: p("bedrock-samples") });
+    let [, tag] = await exec(`git tag -l "v${mcversion}.*"`, { cwd: p("bedrock-samples") });
     if (tag.trim().length === 0) {
         const [, major, minor] = mcversion.split(".");
         [, tag] = await exec(`git tag -l "v1.${major}.${minor.substring(0, minor.length - 1)}[0-9].[0-9]"`, {
             cwd: p("bedrock-samples"),
         });
     }
+
+    tag = tag.split("\n").find((t) => !t.includes("preview")) ?? "";
 
     // Terminate for now if we don't find the version tag, as we don't want to generate incorrect data
     if (tag.trim().length === 0) {
@@ -195,11 +197,13 @@ async function main() {
     await download();
 
     console.log("\n----- Starting server and client ------");
+    const data = mcdata("bedrock_" + mcversion);
     const { server, client, finish } = await start();
 
     // These packets are sent during the login process, but we need their data
     // later on, so we create promises which we can then await the resolved data of later
     const startGame = waitClientEvent("start_game", client);
+    const itemRegistry = waitClientEvent("item_registry", client);
     const biomeDefList = waitClientEvent("biome_definition_list", client);
     const craftingData = waitClientEvent("crafting_data", client);
 
@@ -223,7 +227,10 @@ async function main() {
     await saveMcdata("particles", particles);
     console.log(" - Saved particles.json");
 
-    const items = await generators.items(client, (await startGame).itemstates);
+    const items = await generators.items(
+        client,
+        (data.supportFeature("itemRegistryPacket") ? await itemRegistry : await startGame).itemstates
+    );
     await saveMcdata("items", items);
     console.log(" - Saved items.json");
 
@@ -239,9 +246,10 @@ async function main() {
     await saveMcdata("recipes", recipes);
     console.log(" - Saved recipes.json");
 
-    const blockStates = await generators.blockStates(cwd);
-    await saveMcdata("blockStates", blockStates);
-    console.log(" - Saved blockStates.json");
+    // This is still a WIP
+    // const blockStates = await generators.blockStates(cwd);
+    // await saveMcdata("blockStates", blockStates);
+    // console.log(" - Saved blockStates.json");
 
     const blocks = await generators.blocks(cwd, language, items);
     await saveMcdata("blocks", blocks);

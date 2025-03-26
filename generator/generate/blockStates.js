@@ -1,5 +1,8 @@
+// WIP
+
 const fs = require("fs");
 const path = require("path");
+const nbt = require("prismarine-nbt");
 
 /**
  * This takes the mojang-blocks.json file that Mojang provides in bedrock-samples, and converts
@@ -27,13 +30,47 @@ module.exports = async (cwd) => {
         return permutations;
     }
 
+    function sortStates(states) {
+        const sorted = {};
+        for (const key of Object.keys(states).sort()) sorted[key] = states[key];
+        return sorted;
+    }
+
+    function computeFnv1a32Hash(buf) {
+        const FNV1_OFFSET_32 = 0x811c9dc5;
+        let h = FNV1_OFFSET_32;
+        for (let i = 0; i < buf.length; i++) {
+            h ^= buf[i] & 0xff;
+            h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24);
+        }
+        return h & 0xffffffff;
+    }
+
+    function getPermutationHash(permutation) {
+        const tag = nbt.comp({
+            name: nbt.string("minecraft:" + permutation.name),
+            states: nbt.comp(permutation.states),
+        });
+
+        const buffer = nbt.writeUncompressed(tag, "little");
+        return computeFnv1a32Hash(buffer);
+    }
+
     const blockStates = [];
     for (const block of blocksJson.data_items) {
         const permutations = generatePermutations(
             block.properties.map((x) => blocksJson.block_properties.find((y) => y.name === x.name))
         );
 
-        blockStates.push(...permutations.map((x) => ({ name: block.name.replace("minecraft:", ""), states: x })));
+        for (const permutation of permutations) {
+            blockStates.push({
+                name: block.name.replace("minecraft:", "")
+            })
+        }
+
+        blockStates.push(
+            ...permutations.map((x) => ({ name: block.name.replace("minecraft:", ""), states: sortStates(x) }))
+        );
     }
 
     return blockStates;
